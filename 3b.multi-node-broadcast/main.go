@@ -20,11 +20,24 @@ func (s *server) handleBroadcast(msg maelstrom.Message) error {
 	var ret map[string]any = make(map[string]any)
 	// Update the message type to return back.
 	ret["type"] = "broadcast_ok"
+	s.node.Reply(msg, ret)
 	message := int(body["message"].(float64))
 	s.store = append(s.store, message)
 
+	for _, peer := range s.node.NodeIDs() {
+		if peer == s.node.ID() {
+			continue
+		}
+		go func(peer string, body map[string]any) {
+			// Send the message to the peer.
+			if err := s.node.Send(peer, body); err != nil {
+				log.Printf("failed to send message to peer %s: %v", peer, err)
+			}
+		}(peer, body)
+	}
+
 	// Echo the original message back with the updated message type.
-	return s.node.Reply(msg, ret)
+	return nil
 }
 
 func (s *server) handleRead(msg maelstrom.Message) error {
